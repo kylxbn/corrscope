@@ -448,7 +448,7 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
             matplotlib.rcParams, "lines.antialiased", self.cfg.antialiasing
         )
 
-        self._setup_axes(self.wave_nchans)
+        self._setup_axes([1] * len(self.wave_nchans))
 
         self._artists: List["Artist"] = []
 
@@ -656,6 +656,8 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
 
             xs = calc_xs(len(wave_zeros), strides[wave_idx])
 
+            size_pt = cfg.label_font.size
+
             # Foreach chan
             for chan_idx, chan_zeros in enumerate(wave_zeros.T):
                 ax = wave_axes[chan_idx]
@@ -663,7 +665,18 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
                 chan_line: Line2D = ax.plot(
                     xs, chan_zeros, color=line_color, linewidth=line_width
                 )[0]
+                amp_line = ax.plot(
+                    # xs, [-1.0]*960, color=line_color, linewidth=12
+                    [-960, 958], [-0.97, -0.97], color="#00FFFF", linewidth=8
+                )[0]
+                freq_line = ax.plot(
+                    [-960, 958], [-0.92, -0.92], color="#FFFF00", linewidth=8
+                )[0]
                 wave_lines.append(chan_line)
+                wave_lines.append(amp_line)
+                wave_lines.append(freq_line)
+                
+                break
 
             lines2d.append(wave_lines)
             self._artists.extend(wave_lines)
@@ -700,16 +713,40 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
             # If no sound is detected, fall back to the default color.
             # If we don't color notes by pitch,
             # just keep the initial color and never overwrite it.
-            if color_by_pitch:
+            if True: # color_by_pitch:
                 fallback_color = self._line_params[wave_idx].color
                 color = freq_to_color(self.pitch_cmap, freq_estimate, fallback_color)
 
-            # Foreach chan
-            for chan_idx, chan_data in enumerate(wave_data.T):
-                chan_line = wave_lines[chan_idx]
-                chan_line.set_ydata(chan_data)
-                if color_by_pitch:
-                    chan_line.set_color(color)
+            new_data = []
+            for ldat, rdat in zip(wave_data.T[0], wave_data.T[1]):
+                new_data.append((ldat + rdat))
+
+            chan_line = wave_lines[0]
+            chan_line.set_ydata(new_data)
+
+            # [-960, 958]
+            
+            def decibel(data):
+                sum = 0
+                for sample in data:
+                    sum += sample * sample
+                rms = math.sqrt(sum / len(data))
+                return rms * 2
+                decibel = 20 * math.log10(rms)
+                return (90 + decibel) / 90.0 if decibel >= -90 else 0
+            
+            #if wave_idx == 0:
+            #    print('L: ' + str(decibel(wave_data.T[0])) + ' R: ' + str(decibel(wave_data.T[1])))
+            wave_lines[1].set_xdata([decibel(wave_data.T[0]) * (-960), decibel(wave_data.T[1]) * 958])
+
+            if freq_estimate is not None:
+                freq_x = 1900.0 * (math.log2(freq_estimate) / 11)
+            else:
+                freq_x = -100
+            wave_lines[2].set_xdata([-1250 + freq_x, -1250 + freq_x + 20])
+            # wave_lines[2].set_xdata([0,0])
+            # wave_lines[2].set_color(color)
+
 
     def _add_xy_line_mono(
         self, wave_idx: int, xs: Sequence[float], ys: Sequence[float], stride: int
@@ -830,7 +867,7 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
         canvas.restore_region(self.bg_cache)
 
         for artist in self._artists:
-            artist.axes.draw_artist(artist)
+           artist.axes.draw_artist(artist)
 
         # canvas.blit(self._fig.bbox) is unnecessary when drawing off-screen.
 
