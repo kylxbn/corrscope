@@ -767,8 +767,8 @@ class AbstractMatplotlibRenderer(_RendererBackend, ABC):
                 freq_x = 1900.0 * (math.log2(freq_estimate) / 11)
             else:
                 freq_x = -100
-            wave_lines[2].set_xdata([-1250 + freq_x, -1250 + freq_x + 20])
-            # wave_lines[2].set_xdata([0,0])
+            # wave_lines[2].set_xdata([-1250 + freq_x, -1250 + freq_x + 20])
+            wave_lines[2].set_xdata([0,0])
             # wave_lines[2].set_color(color)
 
 
